@@ -1,12 +1,8 @@
-use base64::Engine;
+use crate::*;
 use mysql_async::{
     params,
-    prelude::{FromRow, FromValue, Query, Queryable, WithParams},
-    Row,
+    prelude::{Query, WithParams},
 };
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use crate::*;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {

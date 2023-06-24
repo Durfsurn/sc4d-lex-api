@@ -1,12 +1,12 @@
+use crate::*;
 use base64::Engine;
 use mysql_async::{
     params,
-    prelude::{FromRow, FromValue, Query, Queryable, WithParams},
+    prelude::{FromValue, Query, WithParams},
     Row,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use crate::*;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct LEXUser {
@@ -98,7 +98,13 @@ impl LEXUser {
         let mut conn = config.connect_db().await?;
 
         LEXUser::check_register(
-            username.clone(), password_1, password_2, email.clone(), fullname.clone(), config.clone(), ip.clone(),
+            username.clone(),
+            password_1,
+            password_2,
+            email.clone(),
+            fullname.clone(),
+            config.clone(),
+            ip.clone(),
         )
         .await?;
 
@@ -115,7 +121,13 @@ impl LEXUser {
             .ignore(&mut conn)
             .await?;
 
-        crate::email::Email::send_registration(config, email, username, String::from_utf8_lossy(&hashed_password.to_vec()).to_string()).await?;
+        crate::email::Email::send_registration(
+            config,
+            email,
+            username,
+            String::from_utf8_lossy(&hashed_password.to_vec()).to_string(),
+        )
+        .await?;
 
         Ok(warp::reply())
     }

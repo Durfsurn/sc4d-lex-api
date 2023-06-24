@@ -69,7 +69,7 @@ impl Search {
                     "mod" => Some("MAXISCAT = '250_MXC_Modd.gif'"),
                     "other" => Some("MAXISCAT IN ('250_MXC_Tools.gif','250_MXC_FilesDocs.gif')"),
                     _ => None
-               }
+               }.map(ToString::to_string)
             } else {
                 None
             }
@@ -77,7 +77,7 @@ impl Search {
             None
         };
 
-        let order_by = if let Some(ob) = params.order_by {
+        let last_updated = if let Some(ob) = &params.order_by {
             if ob != "Update" {
                 Some("LASTUPDATE >= 0".to_string())
             } else {
@@ -87,12 +87,9 @@ impl Search {
             None
         };
 
-        let group = if let Some(group) = params.group {
-            if &group != "Select" && group.parse::<usize>().is_ok() {
-                Some(format!(
-                    "LOTGROUP = {}",
-                    group.parse::<usize>().unwrap()
-                ))
+        let group = if let Some(g) = params.group {
+            if &g != "Select" && g.parse::<usize>().is_ok() {
+                Some(format!("LOTGROUP = {}", g.parse::<usize>().unwrap()))
             } else {
                 None
             }
@@ -100,12 +97,9 @@ impl Search {
             None
         };
 
-        let query = if let Some(query) = params.query {
-            if &query != "Select" && !query.is_empty() {
-                Some(format!(
-                    "UPPER(LOTNAME) LIKE = {}",
-                    query
-                ))
+        let query = if let Some(q) = params.query {
+            if &q != "Select" && !q.is_empty() {
+                Some(format!("UPPER(LOTNAME) LIKE = {}", q))
             } else {
                 None
             }
@@ -113,15 +107,104 @@ impl Search {
             None
         };
 
-        Ok(String::new())
+        let exclude_locked = if let Some(el) = params.exclude_locked {
+            if el.parse::<bool>() == Ok(true) {
+                Some("ADMLOCK = 'F' AND USRLOCK = 'F'".to_string())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let exclude_notcert = if let Some(enc) = params.exclude_notcert {
+            if enc.parse::<bool>() == Ok(true) {
+                Some("ACCLVL > 0".to_string())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let order_by = if let Some(ob) = params.order_by {
+            match ob.as_str() {
+                "download" => Some("ORDER BY LOTDOWNLOADS"),
+                "popular" => Some("ORDER BY LOTDOWNLOADS"),
+                "update" => Some("ORDER BY LASTUPDATE"),
+                "recent" => Some("ORDER BY LOTID"),
+                "random" => Some("ORDER BY RAND()"),
+                _ => Some("ORDER BY LOTID"),
+            }
+        } else {
+            Some("ORDER BY LOTID")
+        }
+        .map(ToString::to_string);
+
+        let order = if let Some(o) = params.order {
+            match o.to_uppercase().as_str() {
+                "ASC" | "DESC" => Some(o),
+                _ => Some("DESC".into()),
+            }
+        } else {
+            None
+        };
+
+        let limit = {
+            let start = params
+                .start
+                .and_then(|opt| opt.parse::<usize>().ok())
+                .unwrap_or(0);
+            let amount = params
+                .amount
+                .and_then(|opt| opt.parse::<usize>().ok())
+                .unwrap_or(15);
+
+            format!("LIMIT {start}, {amount}")
+        };
+
+        let where_clauses = &[
+            creator,
+            broad_category,
+            lex_category,
+            lex_type,
+            broad_type,
+            last_updated,
+            group,
+            query,
+            exclude_locked,
+            exclude_notcert,
+            Some("ISACTIVE='T'".into()),
+            order_by,
+            order,
+        ];
+
+        let first_some = where_clauses
+            .iter()
+            .position(|wc| wc.is_some())
+            .ok_or(Error::MalformedRequest)?;
+
+        let clause = format!(
+            "SELECT * FROM LEX_LOTS WHERE {} {}",
+            where_clauses[first_some]
+                .as_ref()
+                .cloned()
+                .unwrap_or_default(),
+            where_clauses[first_some + 1..]
+                .iter()
+                .filter_map(|wc| wc.as_ref())
+                .join(" AND ")
+        );
+
+        Ok(clause)
     }
     pub(crate) fn do_search() {}
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct SearchParams {
-    start: Option<isize>,
-    amount: Option<isize>,
+    start: Option<String>,
+    amount: Option<String>,
     order: Option<String>,
     concise: bool,
     user: Option<bool>,
@@ -137,6 +220,6 @@ struct SearchParams {
     group: Option<String>,
     order_by: Option<String>,
     query: Option<String>,
-    exclude_notcert: Option<bool>,
-    exclude_locked: Option<bool>,
+    exclude_notcert: Option<String>,
+    exclude_locked: Option<String>,
 }
