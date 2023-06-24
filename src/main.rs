@@ -1,6 +1,12 @@
 mod base;
+mod category;
 mod email;
+mod lot;
 mod routes;
+mod search;
+mod user;
+
+use {base::*, user::*};
 
 use std::sync::Arc;
 
@@ -17,7 +23,8 @@ async fn main() {
         simple_logging::log_to_file(
             std::env::var("log_file").unwrap_or_else(|_| "No envvar `logfile`.".into()),
             log::LevelFilter::Info,
-        ).expect("Logging initialise failed.");
+        )
+        .expect("Logging initialise failed.");
     }
 
     if let Err(e) = server().await {
@@ -31,8 +38,8 @@ async fn main() {
     }
 }
 
-async fn server() -> base::Result<()> {
-    let config = Arc::new(base::Config {
+async fn server() -> Result<()> {
+    let config = Arc::new(Config {
         db_arch: std::env::var("db_arch")?,
         db_name: std::env::var("db_name")?,
         db_host: std::env::var("db_host")?,
@@ -48,7 +55,7 @@ async fn server() -> base::Result<()> {
         email_orig: std::env::var("email_orig")?,
         api_version: std::env::var("api_version")?,
     });
-    let with_config = |arc_config: Arc<base::Config>| warp::any().map(move || arc_config.clone());
+    let with_config = |arc_config: Arc<Config>| warp::any().map(move || arc_config.clone());
 
     let get_endpoints = warp::any()
         .and_then(|| routes::get_endpoints().map(handle_application_error))
@@ -110,13 +117,17 @@ async fn server() -> base::Result<()> {
         .and(warp::header::headers_cloned())
         .and(warp::filters::addr::remote())
         .and(warp::query())
-        .and_then(|config, headers, remote, query| routes::post_register_user(config, headers, remote, query).map(handle_application_error))
+        .and_then(|config, headers, remote, query| {
+            routes::post_register_user(config, headers, remote, query).map(handle_application_error)
+        })
         .boxed();
     let get_activate_user = warp::get()
         .and(warp::path!("user/activate"))
         .and(with_config(config.clone()))
         .and(warp::query())
-        .and_then(|config, query| routes::get_activate_user(config, query).map(handle_application_error))
+        .and_then(|config, query| {
+            routes::get_activate_user(config, query).map(handle_application_error)
+        })
         .boxed();
     let get_all_lots = warp::get()
         .and(warp::path!("lot/all"))
@@ -233,28 +244,28 @@ async fn server() -> base::Result<()> {
 }
 
 pub fn handle_application_error<'a>(
-    result: base::Result<impl warp::Reply + 'a>,
+    result: Result<impl warp::Reply + 'a>,
 ) -> std::result::Result<Box<dyn warp::Reply + 'a>, std::convert::Infallible> {
     match result {
         Err(e) => {
             log::warn!("Request application error: {:#?}", e.to_string());
             // eprintln!("Request application error: {:#?}", e.to_string());
             match e {
-                base::Error::Forbidden => {
+                Error::Forbidden => {
                     let err = warp::reply::with_status(
                         warp::reply::json(&e.to_string()),
                         warp::http::StatusCode::FORBIDDEN,
                     );
                     Ok(Box::new(err))
                 }
-                base::Error::Unauthorized => {
+                Error::Unauthorized => {
                     let err = warp::reply::with_status(
                         warp::reply::json(&e.to_string()),
                         warp::http::StatusCode::UNAUTHORIZED,
                     );
                     Ok(Box::new(err))
                 }
-                base::Error::MalformedRequest => {
+                Error::MalformedRequest => {
                     let err = warp::reply::with_status(
                         warp::reply::json(&e.to_string()),
                         warp::http::StatusCode::BAD_REQUEST,
