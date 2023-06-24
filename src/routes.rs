@@ -195,8 +195,16 @@ pub(crate) async fn get_dependency_string(lot: String) -> Result<impl warp::Repl
 pub(crate) async fn update_dependency_string(lot: String) -> Result<impl warp::Reply> {
     Ok(warp::reply())
 }
-pub(crate) async fn do_search() -> Result<impl warp::Reply> {
-    Ok(warp::reply())
+pub(crate) async fn do_search(
+    config: Arc<Config>,
+    headers: warp::hyper::HeaderMap,
+    remote: Option<std::net::SocketAddr>,
+    query: SearchParams,
+) -> Result<impl warp::Reply> {
+    let (username, password) = get_auth_from_headers(headers);
+    let ip = remote.ok_or(Error::Forbidden)?.to_string();
+
+    Search::do_search(config, username, password, ip, query).await
 }
 pub(crate) async fn get_broad_category() -> Result<impl warp::Reply> {
     Ok(warp::reply())

@@ -1,10 +1,10 @@
 struct Category {}
 
 impl Category {
-    pub(crate) fn getBroadCategory() {}
-    pub(crate) fn getLEXCategory() {}
-    pub(crate) fn getLEXType() {}
-    pub(crate) fn getGroup() {}
-    pub(crate) fn getAuthor() {}
-    pub(crate) fn getAll() {}
+    pub(crate) async fn getBroadCategory() {}
+    pub(crate) async fn getLEXCategory() {}
+    pub(crate) async fn getLEXType() {}
+    pub(crate) async fn getGroup() {}
+    pub(crate) async fn getAuthor() {}
+    pub(crate) async fn getAll() {}
 }

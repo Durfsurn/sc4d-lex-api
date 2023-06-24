@@ -1,7 +1,9 @@
 use crate::*;
+use md5::Digest;
+use mysql_async::prelude::{Query, WithParams};
 use serde::{Deserialize, Serialize};
 
-struct Search {}
+pub(crate) struct Search {}
 
 impl Search {
     pub(crate) fn build_query(params: SearchParams) -> Result<String> {
@@ -185,7 +187,7 @@ impl Search {
             .ok_or(Error::MalformedRequest)?;
 
         let clause = format!(
-            "SELECT * FROM LEX_LOTS WHERE {} {}",
+            "SELECT * FROM LEX_LOTS WHERE {} {} {limit}",
             where_clauses[first_some]
                 .as_ref()
                 .cloned()
@@ -198,11 +200,49 @@ impl Search {
 
         Ok(clause)
     }
-    pub(crate) fn do_search() {}
+    pub(crate) async fn do_search(
+        config: Arc<Config>,
+        username: String,
+        password: Digest,
+        ip: String,
+        params: SearchParams,
+    ) -> Result<impl warp::Reply> {
+        let query = Search::build_query(params.clone())?;
+
+        let mut conn = config.connect_db().await?;
+
+        let user = Base::get_auth(config, username, password, ip).await?;
+
+        let q = if params.concise {
+            query
+                .with(())
+                .map(&mut conn, |(lotid, lotname): (String, String)| {
+                    serde_json::json!({
+                        "lotid": lotid,
+                        "lotname": lotname,
+                    })
+                })
+                .await?
+        } else {
+            query
+                .with(())
+                .map(&mut conn, crate::lot::Lot::new)
+                .await?
+                .into_iter()
+                .map(|lot| {
+                    let lot = crate::lot::Lot::get_lot(lot, user);
+
+                    serde_json::to_value(lot).unwrap()
+                })
+                .collect()
+        };
+
+        Ok(warp::reply::json(&q))
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct SearchParams {
+pub(crate) struct SearchParams {
     start: Option<String>,
     amount: Option<String>,
     order: Option<String>,

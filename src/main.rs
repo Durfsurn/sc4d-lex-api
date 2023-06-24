@@ -6,7 +6,7 @@ mod routes;
 mod search;
 mod user;
 
-use {base::*, user::*};
+use {base::*, user::*, lot::*, search::*, category::*};
 
 use std::sync::Arc;
 
@@ -179,7 +179,11 @@ async fn server() -> Result<()> {
         .boxed();
     let do_search = warp::get()
         .and(warp::path!("search"))
-        .and_then(|| routes::do_search().map(handle_application_error))
+        .and(with_config(config.clone()))
+        .and(warp::header::headers_cloned())
+        .and(warp::filters::addr::remote())
+        .and(warp::query())
+        .and_then(|config, headers, remote, query| routes::do_search(config, headers, remote, query).map(handle_application_error))
         .boxed();
     let get_broad_category = warp::get()
         .and(warp::path!("category/broad-category"))
