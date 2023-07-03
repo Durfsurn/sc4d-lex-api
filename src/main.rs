@@ -187,27 +187,33 @@ async fn server() -> Result<()> {
         .boxed();
     let get_broad_category = warp::get()
         .and(warp::path!("category/broad-category"))
-        .and_then(|| routes::get_broad_category().map(handle_application_error))
+        .and(with_config(config.clone()))
+        .and_then(|config| routes::get_broad_category(config).map(handle_application_error))
         .boxed();
     let get_lex_category = warp::get()
         .and(warp::path!("category/lex-category"))
-        .and_then(|| routes::get_lex_category().map(handle_application_error))
+        .and(with_config(config.clone()))
+        .and_then(|config| routes::get_lex_category(config).map(handle_application_error))
         .boxed();
     let get_lex_type = warp::get()
         .and(warp::path!("category/lex-type"))
-        .and_then(|| routes::get_lex_type().map(handle_application_error))
+        .and(with_config(config.clone()))
+        .and_then(|config| routes::get_lex_type(config).map(handle_application_error))
         .boxed();
     let get_group = warp::get()
         .and(warp::path!("category/group"))
-        .and_then(|| routes::get_group().map(handle_application_error))
+        .and(with_config(config.clone()))
+        .and_then(|config| routes::get_group(config).map(handle_application_error))
         .boxed();
     let get_author = warp::get()
         .and(warp::path!("category/author"))
-        .and_then(|| routes::get_author().map(handle_application_error))
+        .and(with_config(config.clone()))
+        .and_then(|config| routes::get_author(config).map(handle_application_error))
         .boxed();
     let get_all_categories = warp::get()
         .and(warp::path!("category/all"))
-        .and_then(|| routes::get_all_categories().map(handle_application_error))
+        .and(with_config(config.clone()))
+        .and_then(|config| routes::get_all_categories(config).map(handle_application_error))
         .boxed();
 
     let all_routes = warp::any()

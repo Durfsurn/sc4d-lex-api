@@ -51,7 +51,7 @@ impl LEXUser {
         password_1: String,
         password_2: String,
         email: String,
-        fullname: String,
+        _fullname: String,
         config: Arc<Config>,
         ip: String,
     ) -> Result<bool> {

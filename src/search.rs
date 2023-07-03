@@ -211,7 +211,7 @@ impl Search {
 
         let mut conn = config.connect_db().await?;
 
-        let user = Base::get_auth(config, username, password, ip).await?;
+        let user = Base::get_auth(config.clone(), username, password, ip).await?;
 
         let q = if params.concise {
             query
@@ -230,7 +230,7 @@ impl Search {
                 .await?
                 .into_iter()
                 .map(|lot| {
-                    let lot = crate::lot::Lot::get_lot(lot, user);
+                    let lot = crate::lot::Lot::get_lot(config.clone(), lot, user);
 
                     serde_json::to_value(lot).unwrap()
                 })

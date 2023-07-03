@@ -16,6 +16,8 @@ pub enum Error {
     Forbidden,
     #[error("MalformedRequest")]
     MalformedRequest,
+    #[error("NotFound")]
+    NotFound,
     #[error("Database Error")]
     Database(#[from] mysql_async::Error),
     #[error("Email Error")]
