@@ -206,21 +206,23 @@ pub(crate) async fn do_search(
 
     Search::do_search(config, username, password, ip, query).await
 }
-pub(crate) async fn get_broad_category() -> Result<impl warp::Reply> {
-    Ok(warp::reply())
+pub(crate) async fn get_broad_category(config: Arc<Config>) -> Result<impl warp::Reply> {
+    Ok(warp::reply::json(
+        &Category::getBroadCategory(config).await?,
+    ))
 }
-pub(crate) async fn get_lex_category() -> Result<impl warp::Reply> {
-    Ok(warp::reply())
+pub(crate) async fn get_lex_category(config: Arc<Config>) -> Result<impl warp::Reply> {
+    Ok(warp::reply::json(&Category::getLEXCategory(config).await?))
 }
-pub(crate) async fn get_lex_type() -> Result<impl warp::Reply> {
-    Ok(warp::reply())
+pub(crate) async fn get_lex_type(config: Arc<Config>) -> Result<impl warp::Reply> {
+    Ok(warp::reply::json(&Category::getLEXType(config).await?))
 }
-pub(crate) async fn get_group() -> Result<impl warp::Reply> {
-    Ok(warp::reply())
+pub(crate) async fn get_group(config: Arc<Config>) -> Result<impl warp::Reply> {
+    Ok(warp::reply::json(&Category::getGroup(config).await?))
 }
-pub(crate) async fn get_author() -> Result<impl warp::Reply> {
-    Ok(warp::reply())
+pub(crate) async fn get_author(config: Arc<Config>) -> Result<impl warp::Reply> {
+    Ok(warp::reply::json(&Category::getAuthor(config).await?))
 }
-pub(crate) async fn get_all_categories() -> Result<impl warp::Reply> {
-    Ok(warp::reply())
+pub(crate) async fn get_all_categories(config: Arc<Config>) -> Result<impl warp::Reply> {
+    Category::getAll(config).await
 }
