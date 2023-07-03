@@ -26,6 +26,10 @@ pub enum Error {
     LettreTransport(#[from] lettre::transport::smtp::Error),
     #[error("Base64 Error")]
     Base64(#[from] base64::DecodeError),
+    #[error("SerdeJson Error")]
+    SerdeJson(#[from] serde_json::Error),
+    #[error("IO Error")]
+    Io(#[from] tokio::io::Error),
 }
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -127,4 +131,8 @@ impl Base {
 
 pub(crate) fn get_auth_from_headers(headers: warp::hyper::HeaderMap) -> (String, md5::Digest) {
     todo!()
+}
+
+pub(crate) fn latin1_to_string(s: &[u8]) -> String {
+    s.iter().map(|&c| c as char).collect()
 }

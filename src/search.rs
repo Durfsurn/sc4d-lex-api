@@ -1,4 +1,5 @@
 use crate::*;
+use futures::future;
 use md5::Digest;
 use mysql_async::prelude::{Query, WithParams};
 use serde::{Deserialize, Serialize};
@@ -224,17 +225,26 @@ impl Search {
                 })
                 .await?
         } else {
-            query
+            let futs = query
                 .with(())
                 .map(&mut conn, crate::lot::Lot::new)
                 .await?
                 .into_iter()
-                .map(|lot| {
-                    let lot = crate::lot::Lot::get_lot(config.clone(), lot, user);
+                .map(|lot| async {
+                    let lot = crate::lot::Lot::get_lot(
+                        config.clone(),
+                        params.clone(),
+                        lot,
+                        user,
+                    )
+                    .await;
 
-                    serde_json::to_value(lot).unwrap()
-                })
-                .collect()
+                    lot.and_then(|l| serde_json::to_value(l).map_err(Error::SerdeJson))
+                });
+            future::join_all(futs)
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>>>()?
         };
 
         Ok(warp::reply::json(&q))
@@ -243,23 +253,25 @@ impl Search {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct SearchParams {
-    start: Option<String>,
-    amount: Option<String>,
-    order: Option<String>,
-    concise: bool,
-    user: Option<bool>,
-    dependencies: Option<bool>,
-    comments: Option<bool>,
-    votes: Option<bool>,
+    pub start: Option<String>,
+    pub amount: Option<String>,
+    pub order: Option<String>,
+    pub concise: bool,
+    pub user: Option<bool>,
+    pub dependencies: Option<bool>,
+    pub comments: Option<bool>,
+    pub votes: Option<bool>,
     //  filtering params
-    creator: Option<String>,
-    broad_category: Option<String>,
-    lex_category: Option<String>,
-    lex_type: Option<String>,
-    broad_type: Option<String>,
-    group: Option<String>,
-    order_by: Option<String>,
-    query: Option<String>,
-    exclude_notcert: Option<String>,
-    exclude_locked: Option<String>,
+    pub creator: Option<String>,
+    pub broad_category: Option<String>,
+    pub lex_category: Option<String>,
+    pub lex_type: Option<String>,
+    pub broad_type: Option<String>,
+    pub group: Option<String>,
+    pub order_by: Option<String>,
+    pub query: Option<String>,
+    pub exclude_notcert: Option<String>,
+    pub exclude_locked: Option<String>,
+    pub categories: Option<bool>,
+    pub dependents: Option<bool>,
 }

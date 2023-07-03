@@ -8,6 +8,7 @@ use mysql_async::{
 };
 use serde::{Deserialize, Serialize};
 
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub(crate) struct Lot {
     lotid: isize,
@@ -37,7 +38,7 @@ pub(crate) struct Lot {
     biglotimg: Vec<u8>,
     version: String,
     lotgroup: isize,
-    deps: Vec<u8>,
+    deps: String,
 }
 
 impl Lot {
@@ -89,14 +90,110 @@ impl Lot {
 
         Ok(warp::reply::json(&lots))
     }
-    pub(crate) fn get_lot(config: Arc<Config>, lot: Self, usrid: usize) -> Self {
-        // let mut conn = config.connect_db().await?;
+    pub(crate) async fn get_lot(
+        config: Arc<Config>,
+        params: SearchParams,
+        lot: Self,
+        usrid: usize,
+    ) -> Result<serde_json::Value> {
+        let mut conn = config.connect_db().await?;
+        let author = "SELECT * FROM LEX_USERS WHERE USRID = :usrid"
+            .with(params! {"usrid" => usrid})
+            .map(&mut conn, |usrname: String| usrname)
+            .await?
+            .first()
+            .unwrap()
+            .clone();
 
-        todo!()
+        let id = lot.lotid;
+        let name = lot.lotname.trim();
+        let version = lot.version.trim();
+        let numdl = lot.lotdownloads;
+
+        let exclusive = lot.lexexcl == "T";
+
+        let desc = latin1_to_string(&lot.lotdesc);
+
+        let img = serde_json::json!({
+            "primary": format!("{}{}", config.img_link, String::from_utf8_lossy(&lot.lotimgday)),
+            "secondary": format!("{}{}", config.img_link, String::from_utf8_lossy(&lot.lotimgnigt)),
+            "extra": format!("{}{}", config.img_link, String::from_utf8_lossy(&lot.biglotimg)),
+        });
+
+        let link = format!("{}lex_filedesc.php?lotGET={}", config.index_link, id);
+        let certified = lot.acclvl > 0;
+        let active = !(lot.admlock == "T" || lot.usrlock == "T" || lot.isactive == "F");
+        let upload_date = chrono::NaiveDateTime::parse_from_str(&lot.dateon, "%Y%m%d").unwrap();
+        let update_date = chrono::NaiveDateTime::parse_from_str(&lot.lastupdate, "%Y%m%d").unwrap();
+        let file = format!("{}{}", config.int_file_dir, lot.lotfile);
+        let filesize = Lot::get_human_filesize(tokio::fs::read_to_string(file).await?).await;
+
+        let comments = if params.comments == Some(true) {
+            Some(Lot::get_comment(id).await?)
+        } else {
+            None
+        };
+
+        let votes = if params.votes == Some(true) {
+            Some(Lot::get_vote(config.clone(), id).await?)
+        } else {
+            None
+        };
+
+        let dependencies = if params.dependencies == Some(true) {
+            Some(Lot::get_dependencies(lot.deps.clone()).await?)
+        } else {
+            None
+        };
+
+        let categories = if params.categories == Some(true) {
+            Some(Lot::get_categories(lot.clone()).await?)
+        } else {
+            None
+        };
+
+        let dependents = if params.dependents == Some(true) {
+            Some(Lot::get_dependents(id).await?)
+        } else {
+            None
+        };
+
+        let user = if params.user == Some(true) {
+            "'SELECT * FROM LEX_DOWNLOADTRACK WHERE LOTID = :lotid AND USRID = :usrid AND ISACTIVE=\'T\''"
+                .with(params!{
+                    "lotid" => id,
+                    "usrid" => usrid
+                }).map(&mut conn, |lastdl: String| lastdl).await?.first().cloned()
+        } else {
+            None
+        };
+
+        Ok(serde_json::json!({
+            "id": id,
+            "name": name,
+            "version": version,
+            "num_downloads": numdl,
+            "author": author,
+            "is_exclusive": exclusive,
+            "description": desc,
+            "images": img,
+            "link": link,
+            "is_certified": certified,
+            "is_active": active,
+            "upload_date": upload_date,
+            "update_date": update_date,
+            "filesize": filesize,
+            "comments": comments,
+            "votes": votes,
+            "dependencies": dependencies,
+            "categories": categories,
+            "dependents": dependents,
+            "last_downloaded": user,
+        }))
     }
     pub(crate) async fn get_lot_http(
         config: Arc<Config>,
-        lotid: String,
+        lotid: isize,
     ) -> Result<impl warp::Reply> {
         let mut conn = config.connect_db().await?;
 
@@ -120,22 +217,22 @@ impl Lot {
     pub(crate) async fn update_download_tracker(usrid: String, lot: String) {
         todo!()
     }
-    pub(crate) async fn get_download(lotid: String) {
+    pub(crate) async fn get_download(lotid: isize) {
         todo!()
     }
-    pub(crate) async fn do_download_list(lotid: String) {
+    pub(crate) async fn do_download_list(lotid: isize) {
         todo!()
     }
-    pub(crate) async fn delete_download_list(lotid: String) {
+    pub(crate) async fn delete_download_list(lotid: isize) {
         todo!()
     }
-    pub(crate) async fn get_comment(lotid: String) {
+    pub(crate) async fn get_comment(lotid: isize) -> Result<serde_json::Value> {
         todo!()
     }
-    pub(crate) async fn get_comment_http(lotid: String) {
+    pub(crate) async fn get_comment_http(lotid: isize) {
         todo!()
     }
-    pub(crate) async fn get_vote(config: Arc<Config>, lotid: String) -> Result<impl warp::Reply> {
+    pub(crate) async fn get_vote(config: Arc<Config>, lotid: isize) -> Result<serde_json::Value> {
         let mut conn = config.connect_db().await?;
 
         let res =
@@ -152,46 +249,46 @@ impl Lot {
             *map.get_mut(&rating).unwrap() += 1;
         }
 
-        Ok(warp::reply::json(&serde_json::json!({
+        Ok(serde_json::json!({
             "1": map.get(&1).unwrap().clone(),
             "2": map.get(&2).unwrap().clone(),
             "3": map.get(&3).unwrap().clone(),
-        })))
+        }))
     }
-    pub(crate) async fn get_vote_http(lotid: String) {
+    pub(crate) async fn get_vote_http(lotid: isize) {
         todo!()
     }
-    pub(crate) async fn post_comment(lotid: String) {
+    pub(crate) async fn post_comment(lotid: isize) {
         todo!()
     }
-    pub(crate) async fn get_categories(lot: String) {
+    pub(crate) async fn get_categories(lot: Self) -> Result<serde_json::Value> {
         todo!()
     }
-    pub(crate) async fn get_lot_dependency(lotid: String) {
+    pub(crate) async fn get_lot_dependency(lotid: isize) {
         todo!()
     }
-    pub(crate) async fn get_dependency_string(lotid: String) {
+    pub(crate) async fn get_dependency_string(lotid: isize) {
         todo!()
     }
-    pub(crate) async fn update_dependency_string(lotid: String) {
+    pub(crate) async fn update_dependency_string(lotid: isize) {
         todo!()
     }
-    pub(crate) async fn bulk_download(lotid: String) {
+    pub(crate) async fn bulk_download(lotid: isize) {
         todo!()
     }
     pub(crate) async fn get_dependencies_flat(deps: String) {
         todo!()
     }
-    pub(crate) async fn get_dependencies(deps: String) {
+    pub(crate) async fn get_dependencies(deps: String) -> Result<serde_json::Value> {
         todo!()
     }
-    pub(crate) async fn get_dependents(lotid: String) {
+    pub(crate) async fn get_dependents(lotid: isize) -> Result<serde_json::Value> {
         todo!()
     }
     pub(crate) async fn get_dependency_status(dep: String) {
         todo!()
     }
-    pub(crate) async fn get_human_filesize(bytes: String, decimals: String) {
+    pub(crate) async fn get_human_filesize(bytes: String) -> String {
         todo!()
     }
 }
